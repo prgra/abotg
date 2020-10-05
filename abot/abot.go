@@ -5,15 +5,17 @@ import (
 	"log"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
+	"github.com/sirupsen/logrus"
 )
 
 type app struct {
 	conf Conf
 	bot  *tgbotapi.BotAPI
 	db   *sql.DB
+	log  *logrus.Logger
 }
 
-func (a app) run(c Conf) {
+func (a *app) run() {
 	a.msgLoop()
 
 }
@@ -34,17 +36,18 @@ type Abills struct {
 func Run(c Conf) error {
 	var a app
 	a.conf = c
+	a.log = logrus.New()
 	var err error
+	a.log.WithField("token", a.conf.TgToken).Info("connecting")
 	a.bot, err = tgbotapi.NewBotAPI(a.conf.TgToken)
 	if err != nil {
 		return err
 	}
-	err = a.run()
-	return err
+	a.run()
+	return nil
 }
 
 func (a app) msgLoop() error {
-
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
 
