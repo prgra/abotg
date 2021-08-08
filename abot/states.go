@@ -38,6 +38,22 @@ func (s *states) addVal(id int, k, v string) {
 	s.mut.Unlock()
 }
 
+func (s *states) getValEx(id int, k string) (v string, ok bool) {
+	s.mut.RLock()
+	defer s.mut.RUnlock()
+
+	m, ok := s.vals[id]
+	if !ok {
+		return
+	}
+	v, ok = m[k]
+	return v, ok
+}
+func (s *states) getVal(id int, k string) (v string) {
+	v, _ = s.getValEx(id, k)
+	return v
+}
+
 func (s *states) set(k int, v string) bool {
 	s.mut.Lock()
 	_, ok := s.db[k]

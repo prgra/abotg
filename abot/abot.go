@@ -3,7 +3,6 @@ package abot
 import (
 	"os"
 
-	"github.com/davecgh/go-spew/spew"
 	_ "github.com/go-sql-driver/mysql"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
 	"github.com/jmoiron/sqlx"
@@ -32,7 +31,8 @@ type Conf struct {
 // Abills config part for billing
 type Abills struct {
 	// DBURL::mysql abills url
-	DBURL string `toml:"dburl"`
+	DBURL     string `toml:"dburl"`
+	SecretKey string `toml:"secretkey"`
 }
 
 // Run bot
@@ -93,9 +93,23 @@ func (a *app) loginauth(update tgbotapi.Update) {
 	case "authpass":
 		a.states.addVal(update.Message.From.ID, "pass", update.Message.Text)
 		a.states.set(update.Message.From.ID, "")
-		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "спасибо")
-		a.bot.Send(msg)
-		spew.Dump(a.states)
+		var uid int
+		err := a.db.Get(&uid, "SELECT uid FROM users WHERE id = ? AND password = ENCODE(?, ?)",
+			a.states.getVal(int(update.Message.Chat.ID), "login"),
+			a.states.getVal(int(update.Message.Chat.ID), "pass"),
+			a.conf.Abills.SecretKey,
+		)
+		if err != nil {
+			a.log.WithError(err).Warn("chkusr")
+			break
+		}
+		if uid > 0 {
+			_, err := a.db.Exec("REPLACE into tgauth (uid, tgkey, dt) VALUES (?, ?, now())", uid, update.Message.From.ID)
+			if err != nil {
+				a.log.WithError(err).Warn("replauth")
+			}
+		}
+
 	default:
 		a.states.set(update.Message.From.ID, "authlogin")
 		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Введите логин")
