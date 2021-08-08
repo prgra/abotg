@@ -1,7 +1,6 @@
 package abot
 
 import (
-	"log"
 	"os"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -11,10 +10,11 @@ import (
 )
 
 type app struct {
-	conf Conf
-	bot  *tgbotapi.BotAPI
-	db   *sqlx.DB
-	log  *logrus.Logger
+	conf   Conf
+	bot    *tgbotapi.BotAPI
+	states states
+	db     *sqlx.DB
+	log    *logrus.Logger
 }
 
 func (a *app) run() {
@@ -49,6 +49,7 @@ func Run(c Conf) error {
 	if err != nil {
 		return err
 	}
+	a.states.db = make(state)
 	a.run()
 	return nil
 }
@@ -62,7 +63,7 @@ func ConfigFromEnv(c *Conf) {
 	}
 }
 
-func (a app) msgLoop() error {
+func (a *app) msgLoop() error {
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
 
@@ -71,7 +72,20 @@ func (a app) msgLoop() error {
 		return err
 	}
 	for update := range updates {
-		log.Println(update)
+		uid, _ := a.findAuth(update.Message.From.ID)
+		state := a.states.get(update.Message.From.ID)
+		if uid == 0 || state == "authlogin" || state == "authpass" {
+			a.loginauth(update)
+		}
 	}
 	return err
+}
+
+func (a *app) loginauth(update tgbotapi.Update) {
+	a.states.set(update.Message.From.ID, "authlogin")
+	msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Введите логин")
+	_, err := a.bot.Send(msg)
+	if err != nil {
+		a.log.WithError(err).Warn("tgsend")
+	}
 }
