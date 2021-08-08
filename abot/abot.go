@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 
+	_ "github.com/go-sql-driver/mysql"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
 	"github.com/jmoiron/sqlx"
 	"github.com/sirupsen/logrus"
@@ -41,6 +42,10 @@ func Run(c Conf) error {
 	var err error
 	a.log.WithField("token", a.conf.TgToken).Info("connecting")
 	a.bot, err = tgbotapi.NewBotAPI(a.conf.TgToken)
+	if err != nil {
+		return err
+	}
+	a.db, err = sqlx.Connect("mysql", c.Abills.DBURL)
 	if err != nil {
 		return err
 	}

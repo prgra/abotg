@@ -11,7 +11,7 @@ func main() {
 	var c abot.Conf
 	_, err := toml.DecodeFile("config.toml", &c)
 	if err != nil {
-		log.Println(err)
+		log.Println("toml", err)
 	}
 	abot.ConfigFromEnv(&c)
 	err = abot.Run(c)
