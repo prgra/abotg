@@ -3,6 +3,7 @@ package abot
 import (
 	"os"
 
+	"github.com/davecgh/go-spew/spew"
 	_ "github.com/go-sql-driver/mysql"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
 	"github.com/jmoiron/sqlx"
@@ -50,6 +51,7 @@ func Run(c Conf) error {
 		return err
 	}
 	a.states.db = make(state)
+	a.states.vals = make(map[int]map[string]string)
 	a.run()
 	return nil
 }
@@ -82,10 +84,25 @@ func (a *app) msgLoop() error {
 }
 
 func (a *app) loginauth(update tgbotapi.Update) {
-	a.states.set(update.Message.From.ID, "authlogin")
-	msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Введите логин")
-	_, err := a.bot.Send(msg)
-	if err != nil {
-		a.log.WithError(err).Warn("tgsend")
+	switch a.states.get(update.Message.From.ID) {
+	case "authlogin":
+		a.states.addVal(update.Message.From.ID, "login", update.Message.Text)
+		a.states.set(update.Message.From.ID, "authpass")
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Введите пароль")
+		a.bot.Send(msg)
+	case "authpass":
+		a.states.addVal(update.Message.From.ID, "pass", update.Message.Text)
+		a.states.set(update.Message.From.ID, "")
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "спасибо")
+		a.bot.Send(msg)
+		spew.Dump(a.states)
+	default:
+		a.states.set(update.Message.From.ID, "authlogin")
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Введите логин")
+		_, err := a.bot.Send(msg)
+		if err != nil {
+			a.log.WithError(err).Warn("tgsend")
+		}
 	}
+
 }
