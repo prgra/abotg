@@ -13,7 +13,7 @@ func main() {
 	if err != nil {
 		log.Println(err)
 	}
-
+	abot.ConfigFromEnv(&c)
 	err = abot.Run(c)
 	if err != nil {
 		log.Println(err)

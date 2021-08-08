@@ -1,17 +1,18 @@
 package abot
 
 import (
-	"database/sql"
 	"log"
+	"os"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
+	"github.com/jmoiron/sqlx"
 	"github.com/sirupsen/logrus"
 )
 
 type app struct {
 	conf Conf
 	bot  *tgbotapi.BotAPI
-	db   *sql.DB
+	db   *sqlx.DB
 	log  *logrus.Logger
 }
 
@@ -45,6 +46,15 @@ func Run(c Conf) error {
 	}
 	a.run()
 	return nil
+}
+
+func ConfigFromEnv(c *Conf) {
+	if c.Abills.DBURL == "" {
+		c.Abills.DBURL = os.Getenv("AB_ABILLS_DB")
+	}
+	if c.TgToken == "" {
+		c.TgToken = os.Getenv("AB_TOKEN")
+	}
 }
 
 func (a app) msgLoop() error {
