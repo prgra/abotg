@@ -9,6 +9,7 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
 	"github.com/jmoiron/sqlx"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh/terminal"
 )
 
 type app struct {
@@ -52,7 +53,20 @@ type Abills struct {
 func Run(c Conf) error {
 	var a app
 	a.conf = c
-	a.log = logrus.New()
+	format := "2006-01-02 15:04:05.000"
+	if !terminal.IsTerminal(int(os.Stdout.Fd())) {
+		format = "15:04:05.000"
+	}
+	a.log = &logrus.Logger{
+		Out:   os.Stderr,
+		Level: logrus.InfoLevel,
+		Formatter: &logrus.TextFormatter{
+			// DisableColors:   false,
+			TimestampFormat: format,
+			FullTimestamp:   true,
+		},
+	}
+
 	var err error
 	a.log.WithField("token", a.conf.TgToken).Info("connecting")
 	a.bot, err = tgbotapi.NewBotAPI(a.conf.TgToken)
@@ -95,11 +109,16 @@ func (a *app) msgLoop() error {
 	}
 	for update := range updates {
 		fromID := 0
+		fromStr := ""
 		if update.Message != nil {
 			fromID = update.Message.From.ID
+			fromStr = update.Message.From.String()
+
 		}
 		if update.CallbackQuery != nil {
 			fromID = update.CallbackQuery.From.ID
+			fromStr = update.CallbackQuery.From.String()
+
 		}
 		uid, _ := a.findAuth(fromID)
 
@@ -113,6 +132,7 @@ func (a *app) msgLoop() error {
 				a.states.set(update.CallbackQuery.From.ID, "authlogin")
 				msg := tgbotapi.NewMessage(update.CallbackQuery.Message.Chat.ID, "Введите логин")
 				a.bot.Send(msg)
+				a.log.WithFields(logrus.Fields{"uid": uid, "tg": fromStr}).Info("logout")
 				continue
 			}
 			var uinf UserInf
@@ -130,11 +150,23 @@ func (a *app) msgLoop() error {
 			JOIN dv_main dv ON dv.uid = u.uid
 			JOIN tarif_plans tp on tp.id = dv.tp_id
 			WHERE u.uid = ?`, uid)
-			txt := fmt.Sprintf("договор: *%s*\nТариф: *%s*\nбаланс: *%0.2f*\nкредит: *%0.2f*", uinf.ID, uinf.TP, uinf.Deposit, uinf.Credit)
+			if err != nil {
+				a.log.WithError(err).
+					WithFields(logrus.Fields{
+						"uid": uid,
+						"tg":  fromStr,
+					}).Warn("db.GetUserInf")
+				continue
+			}
+			txt := fmt.Sprintf("договор: *%s*\nтариф: *%s*\nбаланс: *%0.2f*\nкредит: *%0.2f*", uinf.ID, uinf.TP, uinf.Deposit, uinf.Credit)
 			msg := tgbotapi.NewMessage(int64(fromID), txt)
 			msg.ReplyMarkup = numericKeyboard
 			msg.ParseMode = "markdown"
 			a.bot.Send(msg)
+			a.log.WithFields(logrus.Fields{
+				"uid": uid,
+				"tg":  fromStr,
+			}).Info("db.GetUserInf")
 		}
 	}
 	return err
@@ -172,6 +204,10 @@ func (a *app) loginauth(update tgbotapi.Update) (uid int) {
 			a.states.set(update.Message.From.ID, "authlogin")
 
 			a.bot.Send(msg)
+			a.log.WithFields(logrus.Fields{
+				"login": a.states.getVal(int(update.Message.Chat.ID), "login"),
+				"tg":    update.Message.From.String(),
+			}).Info("auth.wrongpass")
 			break
 		}
 		if uid > 0 {
@@ -179,6 +215,11 @@ func (a *app) loginauth(update tgbotapi.Update) (uid int) {
 			if err != nil {
 				a.log.WithError(err).Warn("replauth")
 			}
+			a.log.WithFields(logrus.Fields{
+				"login": a.states.getVal(int(update.Message.Chat.ID), "login"),
+				"uid":   uid,
+				"tg":    update.Message.From.String(),
+			}).Info("auth.ok")
 			return uid
 		}
 
