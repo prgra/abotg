@@ -3,6 +3,7 @@ package abot
 import (
 	"fmt"
 	"os"
+	"regexp"
 
 	_ "github.com/go-sql-driver/mysql"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
@@ -44,6 +45,7 @@ type Abills struct {
 	DBURL     string `toml:"dburl"`
 	SecretKey string `toml:"secretkey"`
 	WebURL    string `toml:"url"`
+	Names     string `toml:"names"`
 }
 
 // Run bot
@@ -61,7 +63,6 @@ func Run(c Conf) error {
 	if err != nil {
 		return err
 	}
-	a.db.Exec("SET NAMES latin1")
 	a.states.db = make(state)
 	a.states.vals = make(map[int]map[string]string)
 	a.run()
@@ -87,6 +88,7 @@ func (a *app) msgLoop() error {
 			tgbotapi.NewInlineKeyboardButtonData("🚪 выход", "exit"),
 		),
 	)
+	var validName = regexp.MustCompile(`^[\w]+$`).MatchString
 	updates, err := a.bot.GetUpdatesChan(u)
 	if err != nil {
 		return err
@@ -114,6 +116,13 @@ func (a *app) msgLoop() error {
 				continue
 			}
 			var uinf UserInf
+			if a.conf.Abills.Names != "" {
+				if validName(a.conf.Abills.Names) {
+					a.db.Exec(fmt.Sprintf("SET NAMES %s", a.conf.Abills.Names))
+				} else {
+					a.log.WithField("names", a.conf.Abills.Names).Warn("wrong names")
+				}
+			}
 			a.db.Get(&uinf,
 				`SELECT u.id, u.uid, pi.fio, b.deposit, u.credit, tp.name as tarif FROM users u 
 			JOIN users_pi pi ON pi.uid = u.uid
