@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"strings"
+	"time"
 
 	_ "github.com/go-sql-driver/mysql"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
@@ -97,11 +99,20 @@ func (a *app) msgLoop() error {
 	u.Timeout = 60
 	var numericKeyboard = tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("ℹ️ информация", "info"),
-			tgbotapi.NewInlineKeyboardButtonURL("биллинг", a.conf.Abills.WebURL),
+			tgbotapi.NewInlineKeyboardButtonData("ℹ️ инфо", "info"),
+			tgbotapi.NewInlineKeyboardButtonURL("биллинг", a.conf.Abills.WebURL)),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("📞 поделиться", "shareph"),
 			tgbotapi.NewInlineKeyboardButtonData("🚪 выход", "exit"),
 		),
 	)
+
+	var contactBut = tgbotapi.NewReplyKeyboard(
+		tgbotapi.NewKeyboardButtonRow(
+			tgbotapi.NewKeyboardButtonContact("\xF0\x9F\x93\x9E Send phone"),
+		),
+	)
+
 	var validName = regexp.MustCompile(`^[\w]+$`).MatchString
 	updates, err := a.bot.GetUpdatesChan(u)
 	if err != nil {
@@ -127,12 +138,28 @@ func (a *app) msgLoop() error {
 			uid = a.loginauth(update)
 		}
 		if uid > 0 {
+			if update.Message != nil && update.Message.Contact != nil {
+				a.log.WithFields(logrus.Fields{"uid": uid, "tg": fromStr, "ph": update.Message.Contact.PhoneNumber}).Info("contact")
+				ph := strings.TrimPrefix(update.Message.Contact.PhoneNumber, "+")
+				_, err := a.db.Exec("UPDATE users_pi SET _tgphone = ? WHERE uid = ?", ph, uid)
+				if err != nil {
+					a.log.WithError(err).Warn("update ph")
+				}
+				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Спасибо")
+				a.bot.Send(msg)
+			}
 			if update.CallbackQuery != nil && update.CallbackQuery.Data == "exit" {
 				a.logout(uid)
 				a.states.set(update.CallbackQuery.From.ID, "authlogin")
 				msg := tgbotapi.NewMessage(update.CallbackQuery.Message.Chat.ID, "Введите логин")
 				a.bot.Send(msg)
 				a.log.WithFields(logrus.Fields{"uid": uid, "tg": fromStr}).Info("logout")
+				continue
+			}
+			if update.CallbackQuery != nil && update.CallbackQuery.Data == "shareph" {
+				msg := tgbotapi.NewMessage(int64(fromID), "📞 нажмите кнопку ниже, чтобы прислать нам свой телефон")
+				msg.ReplyMarkup = contactBut
+				a.bot.Send(msg)
 				continue
 			}
 			var uinf UserInf
@@ -159,10 +186,36 @@ func (a *app) msgLoop() error {
 				continue
 			}
 			txt := fmt.Sprintf("договор: *%s*\nтариф: *%s*\nбаланс: *%0.2f*\nкредит: *%0.2f*", uinf.ID, uinf.TP, uinf.Deposit, uinf.Credit)
-			msg := tgbotapi.NewMessage(int64(fromID), txt)
-			msg.ReplyMarkup = numericKeyboard
-			msg.ParseMode = "markdown"
-			a.bot.Send(msg)
+			if update.CallbackQuery != nil {
+				go func() {
+					msg := tgbotapi.NewEditMessageText(
+						int64(fromID),
+						update.CallbackQuery.Message.MessageID,
+						fmt.Sprintf("договор: ⌛\nтариф: *%s*\nбаланс: ⌛\nкредит: ⌛", uinf.TP),
+					)
+					msg.ReplyMarkup = &numericKeyboard
+					msg.ParseMode = "markdown"
+					a.bot.Send(msg)
+					time.Sleep(time.Second)
+					msg = tgbotapi.NewEditMessageText(
+						int64(fromID),
+						update.CallbackQuery.Message.MessageID,
+						txt,
+					)
+					msg.ReplyMarkup = &numericKeyboard
+					msg.ParseMode = "markdown"
+					a.bot.Send(msg)
+				}()
+			}
+			if update.Message != nil {
+				msg := tgbotapi.NewMessage(
+					int64(fromID),
+					txt,
+				)
+				msg.ReplyMarkup = numericKeyboard
+				msg.ParseMode = "markdown"
+				a.bot.Send(msg)
+			}
 			a.log.WithFields(logrus.Fields{
 				"uid": uid,
 				"tg":  fromStr,
