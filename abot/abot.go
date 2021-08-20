@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -133,8 +134,69 @@ func (a *app) msgLoop() error {
 		}
 		uid, _ := a.findAuth(fromID)
 
+		if uid == 0 && update.Message != nil && update.Message.Contact != nil {
+			users, err := a.findByPhone(update.Message.Contact.PhoneNumber)
+			if err != nil {
+				a.log.WithError(err).Warn("findByPhone")
+			}
+			if len(users) > 0 {
+				var authbtn []tgbotapi.InlineKeyboardButton
+				for i := range users {
+					authbtn = append(
+						authbtn,
+						tgbotapi.NewInlineKeyboardButtonData(
+							users[i].ID, fmt.Sprintf("login_%d", users[i].UID)))
+					a.states.set(update.Message.From.ID, "phoneauth")
+					a.states.addVal(update.Message.From.ID, fmt.Sprintf("login_%d", users[i].UID), update.Message.Contact.PhoneNumber)
+				}
+				var authkb = tgbotapi.NewInlineKeyboardMarkup(
+					tgbotapi.NewInlineKeyboardRow(authbtn...))
+				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Нашел по телефону")
+				msg.ReplyMarkup = authkb
+				a.bot.Send(msg)
+			}
+		}
+
+		if uid == 0 && update.CallbackQuery != nil &&
+			strings.HasPrefix(update.CallbackQuery.Data, "login_") {
+			fmt.Println("olloo1", update.CallbackQuery.Data)
+			preuid, _ := strconv.Atoi(strings.TrimPrefix(update.CallbackQuery.Data, "login_"))
+			if preuid == 0 {
+				fmt.Println("olloo2")
+
+				continue
+			}
+			checkphone := a.states.getVal(update.CallbackQuery.From.ID, update.CallbackQuery.Data)
+			if checkphone == "" {
+				fmt.Println("olloo3")
+
+				continue
+			}
+			users, err := a.findByPhone(checkphone)
+			if err != nil {
+				a.log.WithError(err).Warn("findByPhone")
+			}
+			fnd := false
+			for i := range users {
+				if users[i].UID == preuid {
+					fnd = true
+				}
+			}
+			if fnd {
+				uid = preuid
+				_, err := a.db.Exec("REPLACE into tgauth (uid, tgkey, dt) VALUES (?, ?, now())", uid, update.CallbackQuery.From.ID)
+				if err != nil {
+					a.log.WithError(err).Warn("replauth")
+				}
+				a.log.WithFields(logrus.Fields{
+					"uid": uid,
+					"tg":  update.CallbackQuery.From.String(),
+				}).Info("tel.ok")
+				a.states.set(update.CallbackQuery.From.ID, "")
+			}
+		}
 		state := a.states.get(fromID)
-		if uid == 0 || state == "authlogin" || state == "authpass" {
+		if update.Message != nil && update.Message.Contact == nil && uid == 0 || state == "authlogin" || state == "authpass" {
 			uid = a.loginauth(update)
 		}
 		if uid > 0 {
@@ -151,7 +213,8 @@ func (a *app) msgLoop() error {
 			if update.CallbackQuery != nil && update.CallbackQuery.Data == "exit" {
 				a.logout(uid)
 				a.states.set(update.CallbackQuery.From.ID, "authlogin")
-				msg := tgbotapi.NewMessage(update.CallbackQuery.Message.Chat.ID, "Введите логин")
+				msg := tgbotapi.NewMessage(update.CallbackQuery.Message.Chat.ID, "Введите логин, либо пришлите контакт")
+				msg.ReplyMarkup = contactBut
 				a.bot.Send(msg)
 				a.log.WithFields(logrus.Fields{"uid": uid, "tg": fromStr}).Info("logout")
 				continue
