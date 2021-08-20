@@ -235,10 +235,10 @@ func (a *app) msgLoop() error {
 			}
 			a.db.Get(&uinf,
 				`SELECT u.id, u.uid, pi.fio, b.deposit, u.credit, tp.name as tarif FROM users u 
-			JOIN users_pi pi ON pi.uid = u.uid
-			JOIN bills b on b.uid = u.uid
-			JOIN dv_main dv ON dv.uid = u.uid
-			JOIN tarif_plans tp on tp.id = dv.tp_id
+			LEFT JOIN users_pi pi ON pi.uid = u.uid
+			LEFT JOIN bills b on b.uid = u.uid
+			LEFT JOIN dv_main dv ON dv.uid = u.uid
+			LEFT JOIN tarif_plans tp on tp.id = dv.tp_id
 			WHERE u.uid = ?`, uid)
 			if err != nil {
 				a.log.WithError(err).
