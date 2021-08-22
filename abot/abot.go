@@ -98,9 +98,9 @@ func ConfigFromEnv(c *Conf) {
 func (a *app) msgLoop() error {
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
-	var numericKeyboard = tgbotapi.NewInlineKeyboardMarkup(
+	var infoKb = tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("ℹ️ инфо", "info"),
+			tgbotapi.NewInlineKeyboardButtonData("ℹ️ обновить", "info"),
 			tgbotapi.NewInlineKeyboardButtonURL("биллинг", a.conf.Abills.WebURL)),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("📞 поделиться", "shareph"),
@@ -153,6 +153,10 @@ func (a *app) msgLoop() error {
 					tgbotapi.NewInlineKeyboardRow(authbtn...))
 				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Нашел по телефону")
 				msg.ReplyMarkup = authkb
+				a.bot.Send(msg)
+			}
+			if len(users) == 0 {
+				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "В базе нет Вашего телефона")
 				a.bot.Send(msg)
 			}
 		}
@@ -256,7 +260,7 @@ func (a *app) msgLoop() error {
 						update.CallbackQuery.Message.MessageID,
 						fmt.Sprintf("договор: ⌛\nтариф: *%s*\nбаланс: ⌛\nкредит: ⌛", uinf.TP),
 					)
-					msg.ReplyMarkup = &numericKeyboard
+					msg.ReplyMarkup = &infoKb
 					msg.ParseMode = "markdown"
 					a.bot.Send(msg)
 					time.Sleep(time.Second)
@@ -265,7 +269,7 @@ func (a *app) msgLoop() error {
 						update.CallbackQuery.Message.MessageID,
 						txt,
 					)
-					msg.ReplyMarkup = &numericKeyboard
+					msg.ReplyMarkup = &infoKb
 					msg.ParseMode = "markdown"
 					a.bot.Send(msg)
 				}()
@@ -275,7 +279,7 @@ func (a *app) msgLoop() error {
 					int64(fromID),
 					txt,
 				)
-				msg.ReplyMarkup = numericKeyboard
+				msg.ReplyMarkup = infoKb
 				msg.ParseMode = "markdown"
 				a.bot.Send(msg)
 			}
@@ -341,7 +345,14 @@ func (a *app) loginauth(update tgbotapi.Update) (uid int) {
 
 	default:
 		a.states.set(update.Message.From.ID, "authlogin")
-		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Введите логин")
+
+		var contactBut = tgbotapi.NewReplyKeyboard(
+			tgbotapi.NewKeyboardButtonRow(
+				tgbotapi.NewKeyboardButtonContact("\xF0\x9F\x93\x9E Send phone"),
+			),
+		)
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Введите логин, либо пришлите свой контакт кнопкой ниже")
+		msg.ReplyMarkup = contactBut
 		_, err := a.bot.Send(msg)
 		if err != nil {
 			a.log.WithError(err).Warn("tgsend")
