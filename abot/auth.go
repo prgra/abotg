@@ -30,7 +30,7 @@ func (a *app) findByPhone(phone string) (users []shortuser, err error) {
 	err = a.db.Select(&users, fmt.Sprintf(`SELECT u.id, u.uid 
 	FROM users u 
 	JOIN users_pi pi ON pi.uid = u.uid 
-	WHERE pi.phone like '%%%s%%'`, phone))
+	WHERE pi.phone like '%%%s%%' OR pi._tgphone like '%%%s%%'`, phone, phone))
 	if err != nil {
 		return
 	}
