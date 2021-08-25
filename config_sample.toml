@@ -1,0 +1,6 @@
+tgtoken="1233:aaaa"
+[abills]
+dburl="abills:abills@(127.0.0.1)/abills?parseTime=1"
+secretkey="test12345678901234567890"
+url="https://billing.example.com"
+names="latin1" # have trouble with encoding? set names for info query
