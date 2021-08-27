@@ -12,7 +12,7 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
 	"github.com/jmoiron/sqlx"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh/terminal"
+	"golang.org/x/term"
 )
 
 type app struct {
@@ -57,7 +57,7 @@ func Run(c Conf) error {
 	var a app
 	a.conf = c
 	format := "2006-01-02 15:04:05.000"
-	if !terminal.IsTerminal(int(os.Stdout.Fd())) {
+	if !term.IsTerminal(int(os.Stdout.Fd())) {
 		format = "15:04:05.000"
 	}
 	a.log = &logrus.Logger{

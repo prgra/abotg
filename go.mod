@@ -9,5 +9,5 @@ require (
 	github.com/jmoiron/sqlx v1.3.4
 	github.com/sirupsen/logrus v1.7.0
 	github.com/technoweenie/multipartstreamer v1.0.1 // indirect
-	golang.org/x/crypto v0.0.0-20210812204632-0ba0e8f03122
+	golang.org/x/term v0.0.0-20201126162022-7de9c90e9dd1
 )
