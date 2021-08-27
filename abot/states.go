@@ -12,13 +12,15 @@ type states struct {
 
 func (s *states) get(k int) string {
 	s.mut.RLock()
-	defer s.mut.RUnlock()
-	return s.db[k]
+	r := s.db[k]
+	s.mut.RUnlock()
+	return r
 }
 func (s *states) getVals(k int) map[string]string {
 	s.mut.RLock()
-	defer s.mut.RUnlock()
-	return s.vals[k]
+	r := s.vals[k]
+	s.mut.RUnlock()
+	return r
 }
 
 func (s *states) setVals(k int, m map[string]string) {
@@ -40,9 +42,8 @@ func (s *states) addVal(id int, k, v string) {
 
 func (s *states) getValEx(id int, k string) (v string, ok bool) {
 	s.mut.RLock()
-	defer s.mut.RUnlock()
-
 	m, ok := s.vals[id]
+	s.mut.RUnlock()
 	if !ok {
 		return
 	}
@@ -60,4 +61,11 @@ func (s *states) set(k int, v string) bool {
 	s.db[k] = v
 	s.mut.Unlock()
 	return ok
+}
+
+func (s *states) Clear(id int) {
+	s.mut.Lock()
+	delete(s.db, id)
+	delete(s.vals, id)
+	s.mut.Unlock()
 }
