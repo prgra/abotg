@@ -106,6 +106,9 @@ func (a *app) msgLoop() error {
 			tgbotapi.NewInlineKeyboardButtonData("📞 поделиться", "shareph"),
 			tgbotapi.NewInlineKeyboardButtonData("🚪 выход", "exit"),
 		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("заявка на ремонт", "repair"),
+		),
 	)
 
 	var contactBut = tgbotapi.NewReplyKeyboard(
@@ -275,6 +278,9 @@ func (a *app) loginauth(update tgbotapi.Update) (uid int) {
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("войти по телефону", "phonelogin"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("заявка на подключение", "connect"),
 		),
 	)
 	if update.Message == nil {
