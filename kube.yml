@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: abotg
+  labels:
+    app: abotg
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: abotg
+  template:
+    metadata:
+      labels:
+        app: abotg
+    spec:
+      containers:
+      - name: abotg
+        image: prgr/abotg
+        volumeMounts:
+        - name: conf
+          mountPath: "/app/config.toml"
+          subPath: config.toml
+          readOnly: true
+      volumes:
+      - name: conf
+        configMap:
+          name: abotconfig 
