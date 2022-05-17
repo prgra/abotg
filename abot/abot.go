@@ -123,6 +123,9 @@ func (a *app) msgLoop() error {
 	for update := range updates {
 		fromID := 0
 		fromStr := ""
+		if update.Message != nil && update.Message.Chat != nil && update.Message.Chat.Type == "group" {
+			continue
+		}
 		if update.Message != nil {
 			fromID = update.Message.From.ID
 			fromStr = update.Message.From.String()
