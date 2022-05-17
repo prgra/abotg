@@ -3,7 +3,6 @@ package abot
 import (
 	"fmt"
 	"os"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -107,7 +106,7 @@ func (a *app) msgLoop() error {
 			tgbotapi.NewInlineKeyboardButtonData("🚪 выход", "exit"),
 		),
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("заявка на ремонт", "repair"),
+			tgbotapi.NewInlineKeyboardButtonData("получить пароль", "getpass"),
 		),
 	)
 
@@ -117,7 +116,6 @@ func (a *app) msgLoop() error {
 		),
 	)
 
-	var validName = regexp.MustCompile(`^[\w]+$`).MatchString
 	updates, err := a.bot.GetUpdatesChan(u)
 	if err != nil {
 		return err
@@ -191,6 +189,31 @@ func (a *app) msgLoop() error {
 				continue
 			}
 
+			if update.CallbackQuery != nil && update.CallbackQuery.Data == "getpass" {
+				pass, err := a.GetPassword(uid)
+
+				if err != nil {
+					a.log.WithError(err).Warn("getpass")
+					msg := tgbotapi.NewMessage(update.CallbackQuery.Message.Chat.ID, "Ошибка")
+					a.bot.Send(msg)
+					continue
+				}
+				uinf, err := a.GetUserInfo(uid, fromStr)
+				if err != nil {
+					a.log.WithError(err).
+						WithFields(logrus.Fields{
+							"uid": uid,
+							"tg":  fromStr,
+						}).Warn("db.GetUserInf")
+					continue
+				}
+				msg := tgbotapi.NewMessage(update.CallbackQuery.Message.Chat.ID,
+					fmt.Sprintf("биллинг: %s\nлогин: `%s`\nпароль: `%s`\n", a.conf.Abills.WebURL, uinf.ID, pass))
+				msg.ParseMode = "Markdown"
+				a.bot.Send(msg)
+				a.log.WithFields(logrus.Fields{"uid": uid, "tg": fromStr}).Info("logout")
+				continue
+			}
 			if update.CallbackQuery != nil && update.CallbackQuery.Data == "login" {
 				a.logout(uid)
 				a.states.set(update.CallbackQuery.From.ID, "authlogin")
@@ -200,21 +223,7 @@ func (a *app) msgLoop() error {
 				continue
 			}
 
-			var uinf UserInf
-			if a.conf.Abills.Names != "" {
-				if validName(a.conf.Abills.Names) {
-					a.db.Exec(fmt.Sprintf("SET NAMES %s", a.conf.Abills.Names))
-				} else {
-					a.log.WithField("names", a.conf.Abills.Names).Warn("wrong names")
-				}
-			}
-			a.db.Get(&uinf,
-				`SELECT u.id, u.uid, pi.fio, b.deposit, u.credit, tp.name as tarif FROM users u 
-			LEFT JOIN users_pi pi ON pi.uid = u.uid
-			LEFT JOIN bills b on b.uid = u.uid
-			LEFT JOIN dv_main dv ON dv.uid = u.uid
-			LEFT JOIN tarif_plans tp on tp.id = dv.tp_id
-			WHERE u.uid = ?`, uid)
+			uinf, err := a.GetUserInfo(uid, fromStr)
 			if err != nil {
 				a.log.WithError(err).
 					WithFields(logrus.Fields{
@@ -279,9 +288,9 @@ func (a *app) loginauth(update tgbotapi.Update) (uid int) {
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("войти по телефону", "phonelogin"),
 		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("заявка на подключение", "connect"),
-		),
+		// tgbotapi.NewInlineKeyboardRow(
+		// 	tgbotapi.NewInlineKeyboardButtonData("заявка на подключение", "connect"),
+		// ),
 	)
 	if update.Message == nil {
 		return
